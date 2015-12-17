@@ -27,6 +27,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+TENANT_REGEX = '[A-Za-z0-9-_.]+'
 
 # Application definition
 
@@ -80,10 +81,11 @@ DATABASES = {
     }
 }
 
-OAUTH2_CERTIFICATES = {
-    'private_key_path' : '',
-    'public_certificate_path': '',
-
+OAUTH2 = {
+    'private_key_path' : os.getenv('PRIVATE_KEY_PATH'),
+    'public_certificate_path': os.getenv('PUBLIC_CERT_PATH'),
+    'nbf': 5 * 60,
+    'exp': 2 * 3600,
 }
 
 

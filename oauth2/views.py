@@ -14,12 +14,14 @@ import base64
 import uuid
 import time
 import ast
-
+from aad_emulator import settings
 
 # Create your views here.
 class OAuthTokenView(View):
-    private_key = open('E:\\dev\\python\\aad_emulator\\AdalOAuthTokenSigningCert.key', 'rb').read().decode('utf-8')
-    public_cert = open('E:\\dev\\python\\aad_emulator\\b64ceradal.cer', 'rb' ).read()
+    #E:\\dev\\python\\aad_emulator\\AdalOAuthTokenSigningCert.key
+    private_key = open(settings.OAUTH2['private_key_path'], 'rb').read().decode('utf-8')
+    #'E:\\dev\\python\\aad_emulator\\b64ceradal.cer'
+    public_cert = open(settings.OAUTH2['public_certificate_path'], 'rb' ).read()
     cert = load_pem_x509_certificate(public_cert, default_backend())
     public_key = cert.public_key()
     base_url = 'https://sts.windows-ppe.net/{0}/'
@@ -28,11 +30,11 @@ class OAuthTokenView(View):
     key_id = base64_encoded_thumbprint.split('=')[0].replace('+', '-')
     key_id = key_id.replace('/', '_')
 
-    def post(self, request):
+    def post(self, request, *args, **kwargs):
         jwt_id = str(uuid.uuid4())
         unix_time_now = int(time.time())
-        unix_time_nbf = int(time.time()) - 5 * 60 # Make this a configuration
-        unix_time_exp = int(time.time()) + 2 * 3600 # Make this configuration
+        unix_time_nbf = int(time.time()) - settings.OAUTH2['nbf']
+        unix_time_exp = int(time.time()) + settings.OAUTH2['exp']
         jwt_headers = {
             'kid': OAuthTokenView.key_id,
             'x5t': OAuthTokenView.key_id,
@@ -46,9 +48,10 @@ class OAuthTokenView(View):
 
         audience = request.POST['resource']
 
-        tenant_id = 'abc'
+        tenant = kwargs['tenant']
         app_id = request.POST['client_id']
-        issuer = OAuthTokenView.base_url.format(tenant_id)
+
+        issuer = '{}://{}/{}/'.format(request.scheme, request.META['HTTP_HOST'], tenant)
 
         jwt_claim_set = {
             "iss": issuer,
@@ -60,7 +63,7 @@ class OAuthTokenView(View):
             "appid": app_id,
             "appidacr": '2',
             "idp": issuer,
-            "tid": tenant_id,
+            "tid": tenant,
             "ver": '1.0',
             }
 
@@ -68,11 +71,11 @@ class OAuthTokenView(View):
 
         json = {
             'token_type': 'Bearer',
-            'expires_in': '3600',
+            'expires_in': settings.OAUTH2['exp'],
             'scope': 'user_impersonation',
-            'expires_on': '1450316583',
-            'not_before': '1450312683',
-            'resource': 'https://sdfpilot.outlook.com/',
+            'expires_on': unix_time_exp,
+            'not_before': unix_time_nbf,
+            'resource': audience,
             'access_token': token.decode('utf-8')
         }
 

@@ -18,8 +18,9 @@ from django.conf.urls import patterns, include, url
 from django.contrib import admin
 
 from oauth2.views import OAuthTokenView
+from aad_emulator import settings
 
 urlpatterns = [
-    url(r'^admin/', admin.site.urls),
-    url(r'^cbv/$', OAuthTokenView.as_view(), name='cbv'),
+    #url(r'^admin/', admin.site.urls),
+    url(r'^(?P<tenant>{})/oauth2/token'.format(settings.TENANT_REGEX), OAuthTokenView.as_view()),
 ]
