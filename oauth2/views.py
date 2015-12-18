@@ -46,7 +46,7 @@ class OAuthTokenView(View):
         tenant = kwargs['tenant']
         app_id = request.POST['client_id']
 
-        scheme = request.META['HTTP_X_FORWARDED_PROTO'] or request.scheme
+        scheme = ('HTTP_X_FORWARDED_PROTO' in request.META and request.META['HTTP_X_FORWARDED_PROTO']) or request.scheme
         issuer = '{}://{}/{}/'.format(scheme, request.META['HTTP_HOST'], tenant)
 
         jwt_claim_set = {
@@ -95,7 +95,7 @@ class FederationMetadataView(View):
     public_key = "".join(public_cert[1:-1])
 
     def get(self, request, *args, **kwargs):
-        scheme = request.META['HTTP_X_FORWARDED_PROTO'] or request.scheme
+        scheme = ('HTTP_X_FORWARDED_PROTO' in request.META and request.META['HTTP_X_FORWARDED_PROTO']) or request.scheme
         entityId = '{}://{}/'.format(scheme, request.META['HTTP_HOST']) + '{tenantid}/'
         metadata_doc = ET.parse('./oauth2/FederationMetaTemplate.xml')
         root = metadata_doc.getroot()
