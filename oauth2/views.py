@@ -46,7 +46,8 @@ class OAuthTokenView(View):
         tenant = kwargs['tenant']
         app_id = request.POST['client_id']
 
-        issuer = '{}://{}/{}/'.format(request.scheme, request.META['HTTP_HOST'], tenant)
+        scheme = request.META['HTTP_X_FORWARDED_PROTO'] or request.scheme
+        issuer = '{}://{}/{}/'.format(scheme, request.META['HTTP_HOST'], tenant)
 
         jwt_claim_set = {
             "iss": issuer,
@@ -94,13 +95,14 @@ class FederationMetadataView(View):
     public_key = "".join(public_cert[1:-1])
 
     def get(self, request, *args, **kwargs):
-        entityId = '{}://{}/'.format(request.scheme, request.META['HTTP_HOST']) + '{tenantid}/'
+        scheme = request.META['HTTP_X_FORWARDED_PROTO'] or request.scheme
+        entityId = '{}://{}/'.format(scheme, request.META['HTTP_HOST']) + '{tenantid}/'
         metadata_doc = ET.parse('./oauth2/FederationMetaTemplate.xml')
         root = metadata_doc.getroot()
         root.set('entityID', entityId)
 
         cert_xpath = '*/metadata:KeyDescriptor/keyinfo:KeyInfo/keyinfo:X509Data/keyinfo:X509Certificate'
-        count = len(root.findall(cert_xpath, FederationMetadataView.ns))
+
         for cert in root.findall(cert_xpath, FederationMetadataView.ns):
             cert.text = FederationMetadataView.public_key
 
@@ -108,7 +110,7 @@ class FederationMetadataView(View):
 
         for addr in root.findall(addr_xpath, FederationMetadataView.ns):
             uri = urlparse(addr.text)
-            addr.text = '{}://{}{}'.format(request.scheme, request.META['HTTP_HOST'], uri.path)
+            addr.text = '{}://{}{}'.format(scheme, request.META['HTTP_HOST'], uri.path)
 
         res = HttpResponse(ET.tostring(root))
 
