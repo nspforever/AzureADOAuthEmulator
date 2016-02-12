@@ -98,11 +98,9 @@ class FederationMetadataView(View):
     public_key = "".join(public_cert[1:-1])
 
     def get(self, request, *args, **kwargs):
-<<<<<<< HEAD
         scheme = request.META['HTTP_X_FORWARDED_PROTO'] or request.scheme
-=======
         scheme = ('HTTP_X_FORWARDED_PROTO' in request.META and request.META['HTTP_X_FORWARDED_PROTO']) or request.scheme
->>>>>>> 35de544472f79e134b0033339037062dd66638b4
+
         entityId = '{}://{}/'.format(scheme, request.META['HTTP_HOST']) + '{tenantid}/'
         metadata_doc = ET.parse('./oauth2/FederationMetaTemplate.xml')
         root = metadata_doc.getroot()
