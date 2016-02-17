@@ -64,5 +64,3 @@ target/
 # Sqlite3 file
 *.sqlite3
 
-# scripts folder
-scripts/
