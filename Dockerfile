@@ -30,6 +30,6 @@ WORKDIR /AzureADOAuthEmulator
 COPY . /AzureADOAuthEmulator
 RUN chmod 775 /AzureADOAuthEmulator/start_emulator.sh
 
-CMD ["/AzureADOAuthEmulator/start_emulator.sh"]
+CMD ["/bin/bash", "/AzureADOAuthEmulator/start_emulator.sh"]
 
 
