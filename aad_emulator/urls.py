@@ -22,6 +22,6 @@ from aad_emulator import settings
 
 urlpatterns = [
     url(r'^(?P<tenant>{})/oauth2/token'.format(settings.TENANT_REGEX), OAuthTokenView.as_view()),
-    url(r'^common/federationmetadata/2007-06/federationmetadata.xml', FederationMetadataView.as_view()),
-    url(r'^federationmetadata/2007-06/federationmetadata.xml', FederationMetadataView.as_view()),
+    url(r'^(?i)common/federationmetadata/2007-06/federationmetadata.xml', FederationMetadataView.as_view()),
+    url(r'^(?i)federationmetadata/2007-06/federationmetadata.xml', FederationMetadataView.as_view()),
 ]
