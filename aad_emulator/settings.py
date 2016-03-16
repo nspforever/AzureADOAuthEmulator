@@ -114,6 +114,10 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
         },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': '/var/log/aadoauth.log',
+        },
     },
     'loggers': {
         'django': {
@@ -126,7 +130,7 @@ LOGGING = {
             'propagate': False,
         },
         'oauth_emulator': {
-            'handlers': ['console'],
+            'handlers': ['file'],
             'level': 'DEBUG',
             'propagate': False,
         }

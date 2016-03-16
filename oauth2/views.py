@@ -54,9 +54,19 @@ class OAuthTokenView(View):
             scheme = ('HTTP_X_FORWARDED_PROTO' in request.META and request.META['HTTP_X_FORWARDED_PROTO']) or request.scheme
             issuer = '{}://{}/{}/'.format(scheme, request.META['HTTP_HOST'], tenant)
 
-            options = {'verify_aud': False, 'verify_signature': False}
+            options = {
+                'verify_aud': False,
+                'verify_signature': False,
+                'verify_exp': False,
+                'verify_nbf': False,
+                'verify_iat': False,
+            }
+
             client_assertion = TokenGenerator.decode_token(request.POST['client_assertion'], options=options)
             appid = client_assertion['sub']
+
+            logger.debug('req_nbf: {}'.format(client_assertion['nbf']))
+            logger.debug('server_now: {}'.format(unix_time_now))
 
             jwt_claim_set = {
                 "iss": issuer,
@@ -89,7 +99,7 @@ class OAuthTokenView(View):
             logger.info("Sending token")
             return JsonResponse(json)
         except Exception as e:
-            logger.exception("FederationMetadataView hit an exception")
+            logger.exception("OAuthTokenView hit an exception")
             raise e
 
 
