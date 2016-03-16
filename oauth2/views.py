@@ -10,9 +10,13 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 import base64
 import time
+import traceback
 import uuid
+import sys
+import logging
 
 
+logger = logging.getLogger("oauth_emulator")
 # Create your views here.
 class OAuthTokenView(View):
     private_key = open(settings.OAUTH2['private_key_path'], 'r').read()
@@ -26,61 +30,67 @@ class OAuthTokenView(View):
     key_id = key_id.replace('/', '_')
 
     def post(self, request, *args, **kwargs):
-        jwt_id = str(uuid.uuid4())
-        unix_time_now = int(time.time())
-        unix_time_nbf = int(time.time()) - settings.OAUTH2['nbf']
-        unix_time_exp = int(time.time()) + settings.OAUTH2['exp']
-        jwt_headers = {
-            'kid': OAuthTokenView.key_id,
-            'x5t': OAuthTokenView.key_id,
-        }
-
-        """
-        claims = request.POST['client_assertion'].split('.')[1] + '='
-        claims_set = base64.b64decode(claims)
-        ast.literal_eval(claims_set)
-        """
-
-        audience = request.POST['resource']
-
-        tenant = kwargs['tenant']
-
-        scheme = ('HTTP_X_FORWARDED_PROTO' in request.META and request.META['HTTP_X_FORWARDED_PROTO']) or request.scheme
-        issuer = '{}://{}/{}/'.format(scheme, request.META['HTTP_HOST'], tenant)
-
-        options = {'verify_aud': False, 'verify_signature': False}
-        client_assertion = TokenGenerator.decode_token(request.POST['client_assertion'], options=options)
-        appid = client_assertion['sub']
-
-        jwt_claim_set = {
-            "iss": issuer,
-            "aud": audience,
-            "jti": jwt_id,
-            "nbf": unix_time_nbf,
-            "iat": unix_time_now,
-            "exp": unix_time_exp,
-            "appid": appid,
-            "appidacr": '2',
-            "idp": issuer,
-            "tid": tenant,
-            "ver": '1.0',
+        try:
+            logger.info("Handling token request")
+            jwt_id = str(uuid.uuid4())
+            unix_time_now = int(time.time())
+            unix_time_nbf = int(time.time()) - settings.OAUTH2['nbf']
+            unix_time_exp = int(time.time()) + settings.OAUTH2['exp']
+            jwt_headers = {
+                'kid': OAuthTokenView.key_id,
+                'x5t': OAuthTokenView.key_id,
             }
 
-        jwt_claim_set["roles"] = ["Directory.ReadWrite.All", ""]
+            """
+            claims = request.POST['client_assertion'].split('.')[1] + '='
+            claims_set = base64.b64decode(claims)
+            ast.literal_eval(claims_set)
+            """
 
-        token = TokenGenerator.get_token(OAuthTokenView.private_key, jwt_headers, jwt_claim_set)
+            audience = request.POST['resource']
 
-        json = {
-            'token_type': 'Bearer',
-            'expires_in': settings.OAUTH2['exp'],
-            'scope': 'user_impersonation',
-            'expires_on': unix_time_exp,
-            'not_before': unix_time_nbf,
-            'resource': audience,
-            'access_token': token.decode('utf-8')
-        }
+            tenant = kwargs['tenant']
 
-        return JsonResponse(json)
+            scheme = ('HTTP_X_FORWARDED_PROTO' in request.META and request.META['HTTP_X_FORWARDED_PROTO']) or request.scheme
+            issuer = '{}://{}/{}/'.format(scheme, request.META['HTTP_HOST'], tenant)
+
+            options = {'verify_aud': False, 'verify_signature': False}
+            client_assertion = TokenGenerator.decode_token(request.POST['client_assertion'], options=options)
+            appid = client_assertion['sub']
+
+            jwt_claim_set = {
+                "iss": issuer,
+                "aud": audience,
+                "jti": jwt_id,
+                "nbf": unix_time_nbf,
+                "iat": unix_time_now,
+                "exp": unix_time_exp,
+                "appid": appid,
+                "appidacr": '2',
+                "idp": issuer,
+                "tid": tenant,
+                "ver": '1.0',
+                }
+
+            jwt_claim_set["roles"] = ["Directory.ReadWrite.All", ""]
+
+            token = TokenGenerator.get_token(OAuthTokenView.private_key, jwt_headers, jwt_claim_set)
+
+            json = {
+                'token_type': 'Bearer',
+                'expires_in': settings.OAUTH2['exp'],
+                'scope': 'user_impersonation',
+                'expires_on': unix_time_exp,
+                'not_before': unix_time_nbf,
+                'resource': audience,
+                'access_token': token.decode('utf-8')
+            }
+
+            logger.info("Sending token")
+            return JsonResponse(json)
+        except Exception as e:
+            logger.exception("FederationMetadataView hit an exception")
+            raise e
 
 
 class FederationMetadataView(View):
@@ -100,32 +110,40 @@ class FederationMetadataView(View):
     public_key = "".join(public_cert[1:-1])
 
     def get(self, request, *args, **kwargs):
-        scheme = ('HTTP_X_FORWARDED_PROTO' in request.META and request.META['HTTP_X_FORWARDED_PROTO']) or request.scheme
+        try:
+            logger.info("Handling federation metadata request")
+            scheme = ('HTTP_X_FORWARDED_PROTO' in request.META and request.META['HTTP_X_FORWARDED_PROTO']) or request.scheme
 
-        entityId = '{}://{}/'.format(scheme, request.META['HTTP_HOST']) + '{tenantid}/'
-        metadata_doc = ET.parse('./oauth2/FederationMetaTemplate.xml')
-        root = metadata_doc.getroot()
-        root.set('entityID', entityId)
+            entityId = '{}://{}/'.format(scheme, request.META['HTTP_HOST']) + '{tenantid}/'
+            metadata_doc = ET.parse('./oauth2/FederationMetaTemplate.xml')
+            root = metadata_doc.getroot()
+            root.set('entityID', entityId)
 
-        cert_xpath = '*/metadata:KeyDescriptor/keyinfo:KeyInfo/keyinfo:X509Data/keyinfo:X509Certificate'
+            cert_xpath = '*/metadata:KeyDescriptor/keyinfo:KeyInfo/keyinfo:X509Data/keyinfo:X509Certificate'
 
-        for cert in root.findall(cert_xpath, FederationMetadataView.ns):
-            cert.text = FederationMetadataView.public_key
+            for cert in root.findall(cert_xpath, FederationMetadataView.ns):
+                cert.text = FederationMetadataView.public_key
 
-        addr_xpath = 'metadata:RoleDescriptor/*/addr:EndpointReference/addr:Address'
+            addr_xpath = 'metadata:RoleDescriptor/*/addr:EndpointReference/addr:Address'
 
-        for addr in root.findall(addr_xpath, FederationMetadataView.ns):
-            uri = urlparse(addr.text)
-            addr.text = '{}://{}{}'.format(scheme, request.META['HTTP_HOST'], uri.path)
+            for addr in root.findall(addr_xpath, FederationMetadataView.ns):
+                uri = urlparse(addr.text)
+                addr.text = '{}://{}{}'.format(scheme, request.META['HTTP_HOST'], uri.path)
 
-        res = HttpResponse(ET.tostring(root))
+            res = HttpResponse(ET.tostring(root))
 
-        res['Content-Type'] = 'text/xml; charset=utf-8'
-        res['Cache-Control'] = 'no-cache, no-store'
-        res['Pragma'] = 'no-cache'
-        res['Expires'] = -1
-        res['Vary'] = 'Accept-Encoding'
-        res['Content-Length'] = len(res.content)
-        res['X-Content-Type-Options'] = 'nosniff'
-        return res
+            res['Content-Type'] = 'text/xml; charset=utf-8'
+            res['Cache-Control'] = 'no-cache, no-store'
+            res['Pragma'] = 'no-cache'
+            res['Expires'] = -1
+            res['Vary'] = 'Accept-Encoding'
+            res['Content-Length'] = len(res.content)
+            res['X-Content-Type-Options'] = 'nosniff'
+
+            logger.info("Sending federation metadata request")
+            return res
+        except Exception as e:
+            logger.exception("FederationMetadataView hit an exception")
+            raise e
+
 
